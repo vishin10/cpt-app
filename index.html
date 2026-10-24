@@ -94,6 +94,12 @@
   .tabbar button.active { color: var(--accent); }
   .tabbar .dot { position: absolute; top: 2px; left: calc(50% + 10px); width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
   [data-page].off { display: none; }
+  .sheet { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: flex; flex-direction: column;
+    padding: calc(env(safe-area-inset-top) + 10px) 16px calc(env(safe-area-inset-bottom) + 12px); }
+  .sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .paper-wrap { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; }
+  #paper { border: 0; width: 816px; height: 1056px; transform-origin: 0 0; background: #fff;
+    box-shadow: 0 2px 14px rgba(0,0,0,.18); border-radius: 4px; display: block; }
   .hidden { display: none !important; }
   .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent;
     border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; }
@@ -147,6 +153,7 @@
         <button class="btn" id="confirmBtn">Confirm &amp; Submit</button>
         <button class="btn secondary" id="doneBtn">I already submitted it</button>
       </div>
+      <button class="btn ghost" id="previewBtn">Preview document</button>
       <button class="btn ghost" id="checkBtn">Check Canvas now</button>
       <p class="note">Checking or submitting logs in to Canvas — approve the Duo push on your phone.</p>
     </section>
@@ -186,6 +193,14 @@
     </section>
   </div>
 </main>
+<div class="sheet hidden" id="previewSheet" role="dialog" aria-modal="true" aria-label="Document preview">
+  <div class="sheet-head">
+    <div><b>Document preview</b><div class="sub" id="previewName"></div></div>
+    <button class="iconbtn" id="previewClose" aria-label="Close">✕</button>
+  </div>
+  <div class="paper-wrap" id="paperWrap"><iframe id="paper" title="Work Hour Log preview"></iframe></div>
+  <p class="note" style="text-align:center">Submitted as PDF. Date = the day you confirm.</p>
+</div>
 <nav class="tabbar hidden" id="tabbar" aria-label="Pages">
   <button data-tab="week" aria-label="This week">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg>

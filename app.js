@@ -304,6 +304,68 @@ $("notifBtn").onclick = async () => {
 };
 $("testBtn").onclick = () => act({ action: "test" }, "Sending a test notification…");
 
+
+// ---------------------------------------------------------------- document preview (same layout as the submitted PDF)
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+function docWeekLabel(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  const mon = new Date(Date.UTC(y, m - 1, d)), sun = new Date(Date.UTC(y, m - 1, d + 6));
+  const M = (x) => MONTHS[x.getUTCMonth()];
+  if (mon.getUTCMonth() === sun.getUTCMonth()) return `Week of ${M(mon)} ${mon.getUTCDate()}-${sun.getUTCDate()}, ${sun.getUTCFullYear()}`;
+  if (mon.getUTCFullYear() === sun.getUTCFullYear()) return `Week of ${M(mon)} ${mon.getUTCDate()} - ${M(sun)} ${sun.getUTCDate()}, ${sun.getUTCFullYear()}`;
+  return `Week of ${M(mon)} ${mon.getUTCDate()}, ${mon.getUTCFullYear()} - ${M(sun)} ${sun.getUTCDate()}, ${sun.getUTCFullYear()}`;
+}
+const fmtH = (h) => `${+(+h).toFixed(2)} hours`;
+function todayMDY() {
+  const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "2-digit", day: "2-digit", year: "numeric" }).formatToParts(new Date());
+  const g = (t) => p.find((x) => x.type === t).value;
+  return `${g("month")}-${g("day")}-${g("year")}`;
+}
+function docHtml(key, hours, name) {
+  const full = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+  const total = hours.reduce((a, b) => a + b, 0);
+  const e = escapeHtml;
+  const rows = [["Day", "Hours Worked"], ...full.map((d, i) => [d, fmtH(hours[i])]), ["Total Hours", fmtH(total)]]
+    .map(([a, b]) => `<tr><td>${e(a)}</td><td>${e(b)}</td></tr>`).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    html,body{margin:0;background:#fff;color:#000}
+    body{font-family:"Times New Roman",Times,"Liberation Serif",serif;font-size:12pt;padding:0.65in 0.85in 0.7in}
+    p{margin:0;line-height:1.15;white-space:pre-wrap}.c{text-align:center}
+    .t{font-size:16pt;font-weight:bold;margin-bottom:10pt}
+    table{width:100%;border-collapse:collapse;margin-bottom:18pt}
+    td{border:0.75pt solid #000;text-align:center;font-size:11.5pt;padding:2.5pt 4pt}
+  </style></head><body>
+    <p class="c t">BUS-799 Applied Learning Practicum</p>
+    <p class="c t">Weekly Work Hour Log</p>
+    <p class="c" style="margin-bottom:8pt">Student: ${e(name)}</p>
+    <p class="c" style="margin-bottom:24pt">${e(docWeekLabel(key))}</p>
+    <table>${rows}</table>
+    <p style="margin-bottom:14pt"><b>Weekly Total:</b> ${e(fmtH(total))}</p>
+    <p style="margin-bottom:24pt"><b>Student Confirmation:</b> I confirm that the work hours reported above for this week are ${e(fmtH(total))}.</p>
+    <p style="margin-bottom:10pt">Signature:  ${e(name)}</p>
+    <p>Date:  ${todayMDY()}</p>
+  </body></html>`;
+}
+function fitPaper() {
+  const wrap = $("paperWrap"), paper = $("paper");
+  const scale = Math.min(1, wrap.clientWidth / 816);
+  paper.style.transform = `scale(${scale})`;
+  paper.style.marginBottom = `${-1056 * (1 - scale)}px`;
+  paper.style.marginRight = `${-816 * (1 - scale)}px`;
+}
+$("previewBtn").onclick = () => {
+  const [key, rec] = currentWeek();
+  const editing = !$("hoursBox").classList.contains("hidden") && readHours();
+  const hours = editing || (rec && rec.hours) || (config && config.default_hours) || [7.5, 7.5, 7.5, 7.5, 7.5, 0, 0];
+  const name = (config && config.student_name) || "";
+  $("paper").srcdoc = docHtml(key, hours, name);
+  $("previewName").textContent = `${(rec && rec.name) || docWeekLabel(key)} · ${fmtH(hours.reduce((a, b) => a + b, 0))}`;
+  $("previewSheet").classList.remove("hidden");
+  requestAnimationFrame(fitPaper);
+};
+$("previewClose").onclick = () => $("previewSheet").classList.add("hidden");
+window.addEventListener("resize", () => { if (!$("previewSheet").classList.contains("hidden")) fitPaper(); });
+
 // ---------------------------------------------------------------- setup + start
 $("saveSetup").onclick = async () => {
   token = $("tokenInput").value.replace(/\s+/g, "");
