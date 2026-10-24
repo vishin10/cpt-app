@@ -134,7 +134,36 @@ function render() {
   if (busy) $("busyBanner").innerHTML = '<span class="spin"></span> Working on Canvas - approve the <b>Duo</b> push if it appears.';
   if (busy) startPolling();
 
+  renderUpcoming();
   renderNotif();
+}
+
+function renderUpcoming() {
+  const up = state.upcoming;
+  if (!up || !up.items) { $("upcoming").innerHTML = '<div class="sub">Tap "Refresh due dates" to load your courses.</div>'; return; }
+  const status = (state.upcoming_status && state.upcoming_status.items) || {};
+  const courses = [...new Set(up.items.map((i) => i.course))].sort();
+  const now = Date.now();
+  let html = "", lastDay = "";
+  for (const it of up.items) {
+    const due = new Date(it.due);
+    const day = due.toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "long", month: "short", day: "numeric" });
+    if (day !== lastDay) { html += `<div class="day">${escapeHtml(day)}</div>`; lastDay = day; }
+    const s = status[String(it.id)];
+    let st = '<span class="st unk">—</span>';
+    if (s && s.submitted) st = '<span class="st good">Submitted ✓</span>';
+    else if (s && s.missing) st = '<span class="st bad">Missing</span>';
+    else if (s) st = due.getTime() < now ? '<span class="st bad">Not submitted</span>' : '<span class="st">Not submitted</span>';
+    const ci = courses.indexOf(it.course) % 3;
+    const time = due.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" });
+    html += `<div class="item"><a href="${escapeHtml(it.url)}" target="_blank" rel="noopener">
+      <span class="course${ci ? " c" + ci : ""}">${escapeHtml(it.course)}</span>${escapeHtml(it.name)}
+      <div class="sub">${it.allday ? "Due end of day" : "Due " + escapeHtml(time)}</div></a>${st}</div>`;
+  }
+  $("upcoming").innerHTML = html || '<div class="sub">Nothing due in the next 3 weeks.</div>';
+  const chk = state.upcoming_status && state.upcoming_status.checked;
+  $("upcomingNote").textContent = `Due dates updated ${fmt(up.updated)}.` +
+    (chk ? ` Submitted status as of ${fmt(chk)} (updates when the agent logs in to Canvas).` : " Submitted status appears after the next Canvas check.");
 }
 
 function buildHours(key, hours) {
@@ -178,6 +207,7 @@ $("confirmBtn").onclick = () => {
 $("doneBtn").onclick = () => { const [key] = currentWeek(); act({ action: "done", week: key }, "Marking as already submitted…"); };
 $("checkBtn").onclick = () => act({ action: "check" }, "Checking Canvas - approve the <b>Duo</b> push in about 1–2 minutes.");
 $("refreshBtn").onclick = () => refresh(true);
+$("upcomingBtn").onclick = () => act({ action: "init" }, "Refreshing due dates (no Duo needed)…");
 
 function startPolling(fresh = false) {
   pollUntil = Math.max(pollUntil, Date.now() + (fresh ? 8 : 3) * 60 * 1000);

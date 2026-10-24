@@ -73,6 +73,16 @@
     border: 1px solid var(--line); background: var(--bg); color: var(--ink); margin-top: 6px; }
   ol { padding-left: 20px; margin: 8px 0; } ol li { margin: 4px 0; }
   img.shot { width: 100%; border-radius: 10px; margin-top: 8px; border: 1px solid var(--line); }
+  .course { display: inline-block; font-size: 12px; font-weight: 650; padding: 2px 8px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent); margin-right: 6px; }
+  .course.c1 { background: #e8e4f6; color: #4b3a8f; } .course.c2 { background: #fdeadf; color: #8a4318; }
+  @media (prefers-color-scheme: dark) { .course.c1 { background: #2a2540; color: #c7bcf2; } .course.c2 { background: #3a2619; color: #f2c09d; } }
+  .day { font-size: 13px; font-weight: 650; color: var(--muted); margin: 12px 0 2px; }
+  .day:first-child { margin-top: 0; }
+  .item { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .item a { color: var(--ink); text-decoration: none; }
+  .item .st { font-size: 13px; white-space: nowrap; text-align: right; }
+  .st.good { color: var(--good); } .st.bad { color: var(--bad); } .st.unk { color: var(--muted); }
   .hidden { display: none !important; }
   .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent;
     border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; }
@@ -128,6 +138,13 @@
       </div>
       <button class="btn ghost" id="checkBtn">Check Canvas now</button>
       <p class="note">Checking or submitting logs in to Canvas — approve the Duo push on your phone.</p>
+    </section>
+
+    <section class="card" id="upcomingCard">
+      <h2>Upcoming – all courses</h2>
+      <div id="upcoming"><div class="sub">—</div></div>
+      <div class="note" id="upcomingNote"></div>
+      <button class="btn ghost" id="upcomingBtn">Refresh due dates</button>
     </section>
 
     <section class="card" id="notifCard">
