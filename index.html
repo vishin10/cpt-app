@@ -83,6 +83,17 @@
   .item a { color: var(--ink); text-decoration: none; }
   .item .st { font-size: 13px; white-space: nowrap; text-align: right; }
   .st.good { color: var(--good); } .st.bad { color: var(--bad); } .st.unk { color: var(--muted); }
+  body.tabs { padding-bottom: calc(env(safe-area-inset-bottom) + 88px); }
+  .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around;
+    padding: 8px 8px calc(env(safe-area-inset-bottom) + 6px); background: color-mix(in srgb, var(--card) 88%, transparent);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-top: 1px solid var(--line); z-index: 10; }
+  .tabbar button { position: relative; flex: 1; max-width: 140px; border: 0; background: none; color: var(--muted);
+    display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 4px 0; }
+  .tabbar svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .tabbar circle { fill: currentColor; stroke: none; }
+  .tabbar button.active { color: var(--accent); }
+  .tabbar .dot { position: absolute; top: 2px; left: calc(50% + 10px); width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
+  [data-page].off { display: none; }
   .hidden { display: none !important; }
   .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent;
     border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; }
@@ -124,7 +135,7 @@
     </div>
     <div id="busyBanner" class="banner info hidden"></div>
 
-    <section class="card" id="weekCard">
+    <section class="card" id="weekCard" data-page="week">
       <h2>This week</h2>
       <div class="title" id="weekTitle">—</div>
       <div class="sub" id="weekSub"></div>
@@ -140,21 +151,21 @@
       <p class="note">Checking or submitting logs in to Canvas — approve the Duo push on your phone.</p>
     </section>
 
-    <section class="card" id="upcomingCard">
+    <section class="card" id="upcomingCard" data-page="due">
       <h2>Upcoming – all courses</h2>
       <div id="upcoming"><div class="sub">—</div></div>
       <div class="note" id="upcomingNote"></div>
       <button class="btn ghost" id="upcomingBtn">Refresh due dates</button>
     </section>
 
-    <section class="card" id="notifCard">
+    <section class="card" id="notifCard" data-page="more">
       <h2>Notifications</h2>
       <div id="notifState" class="sub">—</div>
       <button class="btn secondary" id="notifBtn">Turn on notifications</button>
       <button class="btn ghost hidden" id="testBtn">Send a test notification</button>
     </section>
 
-    <section class="card">
+    <section class="card" data-page="more">
       <h2>Messages</h2>
       <ul class="feed" id="feed"><li class="sub">No messages yet.</li></ul>
       <div id="shotBox" class="hidden">
@@ -163,18 +174,29 @@
       </div>
     </section>
 
-    <section class="card hist">
+    <section class="card hist" data-page="more">
       <h2>History</h2>
       <div id="history"><div class="sub">—</div></div>
     </section>
 
-    <section class="card">
+    <section class="card" data-page="more">
       <h2>Agent</h2>
       <div id="runInfo" class="sub">—</div>
       <button class="btn ghost" id="resetBtn">Change access key</button>
     </section>
   </div>
 </main>
+<nav class="tabbar hidden" id="tabbar" aria-label="Pages">
+  <button data-tab="week" aria-label="This week">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg>
+    <span>This week</span></button>
+  <button data-tab="due" aria-label="Due dates">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+    <span>Due dates</span><i class="dot hidden" id="dueDot"></i></button>
+  <button data-tab="more" aria-label="More">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+    <span>More</span><i class="dot hidden" id="moreDot"></i></button>
+</nav>
 <script src="app.js"></script>
 </body>
 </html>

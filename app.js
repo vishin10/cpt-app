@@ -136,6 +136,8 @@ function render() {
 
   renderUpcoming();
   renderNotif();
+  updateDots();
+  if (store.get("cpt_tab") === "more") store.set("cpt_seen_msgs", String((state.inbox || []).length));
 }
 
 function renderUpcoming() {
@@ -315,9 +317,36 @@ $("saveSetup").onclick = async () => {
 };
 $("resetBtn").onclick = () => { if (confirm("Remove the saved access key from this phone?")) { store.del("cpt_token"); location.reload(); } };
 
+function showPage(name) {
+  document.querySelectorAll("[data-page]").forEach((el) => el.classList.toggle("off", el.dataset.page !== name));
+  document.querySelectorAll(".tabbar button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  $("subtitle").textContent = { week: "Weekly Work Hour Log", due: "Due dates – all courses", more: "Messages & settings" }[name];
+  store.set("cpt_tab", name);
+  if (name === "more") store.set("cpt_seen_msgs", String((state && state.inbox || []).length));
+  window.scrollTo(0, 0);
+  updateDots();
+}
+function updateDots() {
+  if (!state) return;
+  const seen = parseInt(store.get("cpt_seen_msgs") || "0", 10);
+  const unread = (state.inbox || []).length > seen && store.get("cpt_tab") !== "more";
+  $("moreDot").classList.toggle("hidden", !unread);
+  const st = (state.upcoming_status && state.upcoming_status.items) || {};
+  const soon = Date.now() + 2 * 864e5;
+  const urgent = ((state.upcoming && state.upcoming.items) || []).some((i) => {
+    const d = new Date(i.due).getTime(); const s = st[String(i.id)];
+    return d > Date.now() && d < soon && !(s && s.submitted);
+  });
+  $("dueDot").classList.toggle("hidden", !urgent);
+}
+document.querySelectorAll(".tabbar button").forEach((b) => b.onclick = () => showPage(b.dataset.tab));
+
 function start() {
   $("setup").classList.add("hidden");
   $("app").classList.remove("hidden");
+  $("tabbar").classList.remove("hidden");
+  document.body.classList.add("tabs");
+  showPage(store.get("cpt_tab") || "week");
   refresh();
 }
 
