@@ -1,5 +1,5 @@
 // Service worker: offline app shell + push notifications.
-const CACHE = "cpt-hours-v1";
+const CACHE = "cpt-hours-v2";
 const SHELL = ["./", "index.html", "app.js", "manifest.webmanifest", "icon-192.png", "apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {

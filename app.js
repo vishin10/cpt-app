@@ -28,8 +28,10 @@ async function gh(path, opts = {}) {
       ...(opts.body ? { "Content-Type": "application/json" } : {}),
     },
   });
-  if (res.status === 401 || res.status === 403) throw new Error("The access key was rejected (expired or missing permissions).");
-  if (res.status === 404) throw new Error("Not found - check the repository name and that the key has access to it.");
+  if (res.status === 401) throw new Error("GitHub says this key is not valid. Copy it again (it starts with github_pat_ and has no spaces), or regenerate it.");
+  if (res.status === 403 || res.status === 404) throw new Error(
+    "The key works, but it can't open " + repo + ". Edit the token: Repository access must include cpt_agent, " +
+    "and Permissions must have Contents: Read-only and Actions: Read and write.");
   if (!res.ok) throw new Error(`GitHub error ${res.status}`);
   if (res.status === 204) return null;
   return opts.raw ? res.text() : res.json();
@@ -272,7 +274,7 @@ $("testBtn").onclick = () => act({ action: "test" }, "Sending a test notificatio
 
 // ---------------------------------------------------------------- setup + start
 $("saveSetup").onclick = async () => {
-  token = $("tokenInput").value.trim();
+  token = $("tokenInput").value.replace(/\s+/g, "");
   repo = $("repoInput").value.trim().replace(/^https:\/\/github.com\//, "").replace(/\/$/, "");
   if (!token) return alert("Paste the access key first.");
   try {
