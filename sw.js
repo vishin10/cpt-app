@@ -1,5 +1,5 @@
 // Service worker: offline app shell + push notifications.
-const CACHE = "cpt-hours-v4";
+const CACHE = "cpt-hours-v5";
 const SHELL = ["./", "index.html", "app.js", "manifest.webmanifest", "icon-192.png", "apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
@@ -16,7 +16,7 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== self.location.origin) return;
-  e.respondWith(fetch(e.request)
+  e.respondWith(fetch(e.request, { cache: "no-cache" })  // always revalidate, so updates show on next open
     .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return res; })
     .catch(() => caches.match(e.request)));
 });

@@ -350,6 +350,11 @@ function start() {
   refresh();
 }
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => reg.update()).catch(() => {});
+  // when a new version takes over, reload once so the new screens appear
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (!reloaded) { reloaded = true; location.reload(); } });
+}
 document.addEventListener("visibilitychange", () => { if (!document.hidden && token) refresh(); });
 if (token) start(); else { $("setup").classList.remove("hidden"); $("repoInput").value = repo; }
