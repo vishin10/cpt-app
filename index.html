@@ -100,6 +100,18 @@
   .paper-wrap { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; }
   #paper { border: 0; width: 816px; height: 1056px; transform-origin: 0 0; background: #fff;
     box-shadow: 0 2px 14px rgba(0,0,0,.18); border-radius: 4px; display: block; }
+  .disc { border-top: 1px solid var(--line); padding: 14px 0 6px; }
+  .disc:first-child { border-top: 0; padding-top: 4px; }
+  .disc h3 { font-size: 17px; margin: 6px 0 2px; }
+  details { margin: 8px 0; } summary { color: var(--accent); font-weight: 600; font-size: 15px; cursor: pointer; }
+  .prompt { white-space: pre-wrap; font-size: 14px; color: var(--muted); background: var(--bg); border-radius: 10px; padding: 10px; margin-top: 6px; }
+  .draft-label { font-size: 13px; font-weight: 650; color: var(--muted); margin: 12px 0 4px; display: flex; justify-content: space-between; }
+  textarea.draft { width: 100%; min-height: 220px; font: 15px/1.45 -apple-system, BlinkMacSystemFont, sans-serif; padding: 10px;
+    border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); resize: vertical; }
+  textarea.draft.reply { min-height: 140px; }
+  .btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .btnrow .btn { margin-top: 0; padding: 11px; font-size: 15px; }
+  .smallnote { font-size: 13px; color: var(--muted); margin-top: 6px; }
   .hidden { display: none !important; }
   .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent;
     border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; }
@@ -165,6 +177,14 @@
       <button class="btn ghost" id="upcomingBtn">Refresh due dates</button>
     </section>
 
+    <section class="card" data-page="disc">
+      <h2>Pending discussions</h2>
+      <p class="note" style="margin-top:0">AI drafts for you to review, edit and post yourself in Canvas. Nothing is posted automatically.</p>
+      <div id="discList"><div class="sub">—</div></div>
+      <button class="btn secondary" id="discScanBtn">Find discussions now</button>
+      <div class="note" id="discNote"></div>
+    </section>
+
     <section class="card" id="notifCard" data-page="more">
       <h2>Notifications</h2>
       <div id="notifState" class="sub">—</div>
@@ -208,6 +228,9 @@
   <button data-tab="due" aria-label="Due dates">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
     <span>Due dates</span><i class="dot hidden" id="dueDot"></i></button>
+  <button data-tab="disc" aria-label="Discussions">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>
+    <span>Discussions</span><i class="dot hidden" id="discDot"></i></button>
   <button data-tab="more" aria-label="More">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
     <span>More</span><i class="dot hidden" id="moreDot"></i></button>

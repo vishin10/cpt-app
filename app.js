@@ -135,6 +135,7 @@ function render() {
   if (busy) startPolling();
 
   renderUpcoming();
+  renderDiscussions();
   renderNotif();
   updateDots();
   if (store.get("cpt_tab") === "more") store.set("cpt_seen_msgs", String((state.inbox || []).length));
@@ -305,6 +306,92 @@ $("notifBtn").onclick = async () => {
 $("testBtn").onclick = () => act({ action: "test" }, "Sending a test notification…");
 
 
+
+// ---------------------------------------------------------------- discussions
+const openDiscs = () => ((state && state.discussions) || []).filter((d) => !d.hidden);
+const discSig = () => openDiscs().map((d) => `${d.id}:${(d.post_draft || "").length}:${(d.reply_drafts || []).length}`).join("|");
+const words = (t) => (t.trim().match(/\S+/g) || []).length;
+
+function renderDiscussions() {
+  const list = openDiscs();
+  const scanned = state.discussions_scanned;
+  $("discNote").textContent = scanned ? `Last checked ${fmt(scanned)} · checks automatically Mondays 9 AM and when the agent logs in on Fridays.` :
+    "Not checked yet - tap Find discussions now (approve Duo).";
+  if (!list.length) { $("discList").innerHTML = `<div class="sub">${scanned ? "Nothing pending in the next 10 days 🎉" : "—"}</div>`; return; }
+  // keep any edits the user is making
+  const typing = document.activeElement && document.activeElement.classList.contains("draft");
+  if (typing) return;
+  const courses = [...new Set(((state.upcoming && state.upcoming.items) || []).map((i) => i.course).concat(list.map((d) => d.course)))].sort();
+  $("discList").innerHTML = list.map((d) => {
+    const ci = courses.indexOf(d.course) % 3;
+    const repliesLeft = Math.max(0, (d.replies_needed || 0) - (d.replies_done || 0));
+    const status = [d.posted || d.post_done ? "Initial post ✓" : "Initial post needed",
+      d.replies_needed ? `Replies ${d.replies_done || 0}/${d.replies_needed}` : ""].filter(Boolean).join(" · ");
+    let h = `<div class="disc"><span class="course${ci ? " c" + ci : ""}">${escapeHtml(d.course)}</span>
+      <h3>${escapeHtml(d.title)}</h3><div class="sub">Due ${escapeHtml(d.due_text || "")} · ${escapeHtml(status)}</div>
+      <details><summary>Instructor prompt</summary><div class="prompt">${escapeHtml(d.prompt)}</div></details>`;
+    if (!d.posted && !d.post_done) {
+      h += d.post_draft ? draftBlock(d, null, "Your post draft", d.post_draft, false) :
+        '<div class="smallnote">Draft not ready - tap Find discussions now.</div>';
+    }
+    for (const r of (d.reply_drafts || []).filter((r) => !r.done)) {
+      h += `<details><summary>${escapeHtml(r.to)}'s post</summary><div class="prompt">${escapeHtml(r.their_post)}</div></details>` +
+        draftBlock(d, r, `Reply to ${r.to.split(" ")[0]}`, r.draft, true);
+    }
+    if (repliesLeft && !(d.reply_drafts || []).some((r) => !r.done)) {
+      h += `<div class="smallnote">${d.can_see_classmates ? "No more classmates' posts to reply to yet." :
+        "Classmates' posts unlock after you post. Post first, then tap Find discussions now to get reply drafts."}</div>`;
+    }
+    h += `<div class="btnrow"><a class="btn ghost" style="text-align:center;text-decoration:none" href="${escapeHtml(d.url)}" target="_blank" rel="noopener">Open in Canvas</a>
+      <button class="btn ghost" data-act="hide" data-id="${d.id}">Hide</button></div></div>`;
+    return h;
+  }).join("");
+  $("discList").querySelectorAll("textarea.draft").forEach((ta) => ta.addEventListener("input", () => {
+    ta.closest(".draftbox").querySelector(".wc").textContent = `${words(ta.value)} words`;
+  }));
+  $("discList").querySelectorAll("button[data-act]").forEach((b) => b.onclick = () => discAction(b));
+}
+
+function draftBlock(d, r, label, text, isReply) {
+  const eid = r ? r.entry_id : "";
+  return `<div class="draftbox"><div class="draft-label"><span>${escapeHtml(label)}</span><span class="wc">${words(text || "")} words</span></div>
+    <textarea class="draft${isReply ? " reply" : ""}" id="ta-${d.id}-${eid}">${escapeHtml(text || "")}</textarea>
+    <div class="btnrow"><button class="btn" data-act="copy" data-id="${d.id}" data-entry="${eid}">Copy</button>
+      <button class="btn secondary" data-act="redraft" data-id="${d.id}" data-entry="${eid}">Redraft…</button>
+      <button class="btn ghost" data-act="${r ? "replied" : "posted"}" data-id="${d.id}" data-entry="${eid}" style="grid-column:1 / -1">${r ? "I replied - remove this draft" : "I posted it - remove this draft"}</button></div></div>`;
+}
+
+async function discAction(b) {
+  const id = b.dataset.id, entry = b.dataset.entry || "";
+  const act = b.dataset.act;
+  if (act === "copy") {
+    const ta = $(`ta-${id}-${entry}`);
+    try { await navigator.clipboard.writeText(ta.value); }
+    catch { ta.focus(); ta.select(); document.execCommand("copy"); }
+    b.textContent = "Copied ✓"; setTimeout(() => { b.textContent = "Copy"; }, 1800);
+    return;
+  }
+  if (act === "redraft") {
+    const note = window.prompt("Anything to change? (e.g. shorter, more personal, add a work example). Leave empty for a fresh version.", "");
+    if (note === null) return;
+    return act2({ action: "redraft", payload: JSON.stringify({ id, kind: entry ? "reply" : "post", entry_id: entry || undefined, note }) },
+      "Writing a new draft - about 1 minute…");
+  }
+  if (act === "hide" && !confirm("Hide this discussion from the list?")) return;
+  const payload = act === "hide" ? { id } : act === "posted" ? { id, kind: "post" } : { id, entry_id: entry };
+  // update screen immediately, sync in background
+  const d = openDiscs().find((x) => String(x.id) === String(id));
+  if (d) {
+    if (act === "hide") d.hidden = true;
+    else if (act === "posted") d.post_done = true;
+    else (d.reply_drafts || []).forEach((r) => { if (String(r.entry_id) === entry) r.done = true; });
+    renderDiscussions();
+  }
+  dispatch({ action: "disc_mark", payload: JSON.stringify(payload) }).catch((e) => alert(e.message));
+}
+async function act2(inputs, msg) { return act(inputs, msg); }
+$("discScanBtn").onclick = () => act({ action: "discussions" }, "Checking all courses for discussions - approve the <b>Duo</b> push in about 1–2 minutes.");
+
 // ---------------------------------------------------------------- document preview (same layout as the submitted PDF)
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 function docWeekLabel(key) {
@@ -382,7 +469,8 @@ $("resetBtn").onclick = () => { if (confirm("Remove the saved access key from th
 function showPage(name) {
   document.querySelectorAll("[data-page]").forEach((el) => el.classList.toggle("off", el.dataset.page !== name));
   document.querySelectorAll(".tabbar button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
-  $("subtitle").textContent = { week: "Weekly Work Hour Log", due: "Due dates – all courses", more: "Messages & settings" }[name];
+  $("subtitle").textContent = { week: "Weekly Work Hour Log", due: "Due dates – all courses", disc: "Discussion drafts", more: "Messages & settings" }[name];
+  if (name === "disc") store.set("cpt_seen_disc", discSig());
   store.set("cpt_tab", name);
   if (name === "more") store.set("cpt_seen_msgs", String((state && state.inbox || []).length));
   window.scrollTo(0, 0);
@@ -400,6 +488,7 @@ function updateDots() {
     return d > Date.now() && d < soon && !(s && s.submitted);
   });
   $("dueDot").classList.toggle("hidden", !urgent);
+  $("discDot").classList.toggle("hidden", !(openDiscs().length && discSig() !== store.get("cpt_seen_disc") && store.get("cpt_tab") !== "disc"));
 }
 document.querySelectorAll(".tabbar button").forEach((b) => b.onclick = () => showPage(b.dataset.tab));
 
