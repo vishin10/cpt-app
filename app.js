@@ -234,14 +234,50 @@ async function refresh(manual = false) {
 }
 
 async function loadRunInfo() {
+  const recent = $("agentRunsList");
   try {
-    const r = await gh(`/actions/workflows/${WORKFLOW}/runs?per_page=1`);
-    const run = r.workflow_runs && r.workflow_runs[0];
-    if (!run) return;
-    const st = run.status === "completed" ? run.conclusion : run.status.replace("_", " ");
-    $("runInfo").innerHTML = `Last run: <b>${escapeHtml(st)}</b> · ${escapeHtml(fmt(run.created_at))}<br>` +
-      `<a href="${run.html_url}" target="_blank" rel="noopener">Open in GitHub</a>`;
-  } catch {}
+    // The GitHub Actions API is authoritative for actual run timestamps/status,
+    // including runs from before the history feature was installed.
+    const result = await gh(`/actions/workflows/${WORKFLOW}/runs?per_page=10`);
+    const runs = (result.workflow_runs || []).slice(0, 10);
+    if (!runs.length) {
+      $("runInfo").textContent = "No agent runs found.";
+      if (recent) recent.textContent = "No runs yet.";
+      return;
+    }
+    const auditRecords = new Map(((state && state.agent_runs) || []).map(r => [String(r.run_id), r]));
+    const statusText = (run) => run.status === "completed"
+      ? (run.conclusion || "completed")
+      : (run.status || "unknown").replaceAll("_", " ");
+    const first = runs[0];
+    const firstTime = first.run_started_at || first.created_at;
+    $("runInfo").innerHTML = `Last run: <b>${escapeHtml(statusText(first))}</b> · ${escapeHtml(fmt(firstTime))}<br>` +
+      `<a href="${escapeHtml(first.html_url || "#")}" target="_blank" rel="noopener noreferrer">Open in GitHub</a>`;
+    if (recent) {
+      recent.innerHTML = runs.map(run => {
+        const audit = auditRecords.get(String(run.id));
+        const label = audit ? audit.label
+          : run.event === "schedule" ? "Scheduled check"
+          : run.event === "workflow_dispatch" ? "Manual run" : "Agent run";
+        const time = (audit && audit.finished_at) || run.run_started_at || run.created_at;
+        const status = statusText(run);
+        const tone = status === "success" ? "good" :
+          ["failure", "cancelled", "timed_out"].includes(status) ? "bad" : "unk";
+        const url = (run.html_url || "").startsWith("https://github.com/")
+          ? run.html_url : "";
+        return `<div class="disc">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span style="font-weight:600;font-size:14px">${escapeHtml(label)}</span>
+            <span class="st ${tone}">${escapeHtml(status)}</span>
+          </div>
+          <div class="sub" style="font-size:12px;margin-top:4px">${escapeHtml(fmt(time))}</div>
+          ${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="font-size:13px">View run</a>` : ""}
+        </div>`;
+      }).join("");
+    }
+  } catch (e) {
+    if (recent) recent.textContent = "Could not load recent GitHub runs. Try refreshing.";
+  }
 }
 
 async function showFiles() {
