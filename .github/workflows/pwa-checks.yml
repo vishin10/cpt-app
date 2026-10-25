@@ -1,0 +1,19 @@
+name: PWA JavaScript checks
+on:
+  pull_request:
+    paths:
+      - 'app.js'
+      - 'discussion-history.js'
+      - 'live-refresh.js'
+      - 'sw.js'
+      - 'index.html'
+      - '.github/workflows/pwa-checks.yml'
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify JavaScript syntax
+        run: node --check app.js && node --check discussion-history.js && node --check live-refresh.js && node --check sw.js
