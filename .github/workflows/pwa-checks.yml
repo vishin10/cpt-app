@@ -4,6 +4,7 @@ on:
     paths:
       - 'app.js'
       - 'reply-format.js'
+      - 'discussion-sync.js'
       - 'tests/**'
       - 'discussion-history.js'
       - 'live-refresh.js'
@@ -18,6 +19,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Verify JavaScript syntax
-        run: node --check app.js && node --check reply-format.js && node --check discussion-history.js && node --check live-refresh.js && node --check sw.js
+        run: node --check app.js && node --check discussion-sync.js && node --check reply-format.js && node --check discussion-history.js && node --check live-refresh.js && node --check sw.js
       - name: Test reply formatting
-        run: node --test tests/reply-format.test.js
+        run: node --test tests/reply-format.test.js tests/discussion-sync.test.js
