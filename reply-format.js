@@ -18,6 +18,15 @@ function cleanPeerReply(input) {
     }
     result.push(value);
   }
-  return result.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  let cleaned = result.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  // Human-style greeting: "Pradeep — your idea..." -> "Pradeep, your idea..."
+  cleaned = cleaned.replace(/^([A-Za-z][A-Za-z .'-]{0,35})\s*—\s*/, (_, name) => name.trim() + ", ");
+  // Omit a formulaic compliment when a substantive next sentence follows.
+  cleaned = cleaned.replace(
+    /^([A-Za-z][A-Za-z .'-]{0,35}),\s+(?:a\s+)?(?:strong|great|good|excellent|insightful|thoughtful|solid|nice|well-written|compelling|interesting)\s+(?:post|discussion|synthesis|analysis|perspective|point|insight|reflection|summary|connection)[^.!?\n]{0,180}[.!?]\s+(?=\S)/i,
+    (_, name) => name.trim() + ", "
+  );
+  cleaned = cleaned.replace(/\s*—\s*/g, ", ").replace(/\s+,\s*,\s*/g, ", ");
+  return cleaned.trim();
 }
 if (typeof module !== "undefined" && module.exports) module.exports = {cleanPeerReply};
