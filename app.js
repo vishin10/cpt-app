@@ -345,7 +345,8 @@ $("testBtn").onclick = () => act({ action: "test" }, "Sending a test notificatio
 
 // ---------------------------------------------------------------- discussions
 const openDiscs = () => ((state && state.discussions) || []).filter((d) =>
-  !d.hidden && d.due && weekKey(new Date(d.due)) === weekKey());
+  !d.hidden && d.due && weekKey(new Date(d.due)) === weekKey() &&
+  !verifiedDiscussionStatus(state, d, weekKey()).complete);
 const discSig = () => openDiscs().map((d) => `${d.id}:${(d.post_draft || "").length}:${(d.reply_drafts || []).length}`).join("|");
 const words = (t) => (t.trim().match(/\S+/g) || []).length;
 
@@ -354,16 +355,17 @@ function renderDiscussions() {
   const scanned = state.discussions_scanned;
   $("discNote").textContent = scanned ? `Last checked ${fmt(scanned)} · scheduled weekday checks and on-demand scan. Research sources must be reviewed before posting.` :
     "Not checked yet - tap Find discussions now (approve Duo).";
-  if (!list.length) { $("discList").innerHTML = `<div class="sub">${scanned ? "Nothing pending in the next 10 days 🎉" : "—"}</div>`; return; }
+  if (!list.length) { $("discList").innerHTML = `<div class="sub">${scanned ? "No discussions need replies or initial posts this week. Completed responses remain under submitted discussions." : "—"}</div>`; return; }
   // keep any edits the user is making
   const typing = document.activeElement && document.activeElement.classList.contains("draft");
   if (typing) return;
   const courses = [...new Set(((state.upcoming && state.upcoming.items) || []).map((i) => i.course).concat(list.map((d) => d.course)))].sort();
   $("discList").innerHTML = list.map((d) => {
     const ci = courses.indexOf(d.course) % 3;
-    const repliesLeft = Math.max(0, (d.replies_needed || 0) - (d.replies_done || 0));
+    const checked = verifiedDiscussionStatus(state, d, weekKey());
+    const repliesLeft = Math.max(0, checked.required - checked.count);
     const status = [d.posted || d.post_done ? "Initial post ✓" : (d.canvas_entries_verified ? "Initial post needed" : "Initial post unverified"),
-      d.replies_needed ? `Replies ${d.replies_done || 0}/${d.replies_needed}` : ""].filter(Boolean).join(" · ");
+      d.replies_needed ? `Replies ${checked.count}/${d.replies_needed}` : ""].filter(Boolean).join(" · ");
     let h = `<div class="disc"><span class="course${ci ? " c" + ci : ""}">${escapeHtml(d.course)}</span>
       <h3>${escapeHtml(d.title)}</h3><div class="sub">Due ${escapeHtml(d.due_text || "")} · ${escapeHtml(status)}</div>
       <details><summary>Instructor prompt</summary><div class="prompt">${escapeHtml(d.prompt)}</div></details>`;
@@ -398,7 +400,7 @@ function renderDiscussions() {
       h += d.post_draft ? draftBlock(d, null, "Your post draft", d.post_draft, false) :
         '<div class="smallnote">Draft not ready - tap Find discussions now.</div>';
     }
-    const candidates = (d.reply_drafts || []).filter((r) => !r.done);
+    const candidates = checked.pending;
     for (const r of candidates) {
       const refs = r.supporting_sources || [];
       const evidence = refs.length ? `<details><summary>Evidence selected for ${escapeHtml(r.to)} (${refs.length})</summary>
@@ -418,7 +420,7 @@ function renderDiscussions() {
         + evidence
         + draftBlock(d, r, `Reply to ${r.to.split(" ")[0]}`, r.draft, true);
     }
-    if (d.posted && candidates.length) {
+    if (d.posted && repliesLeft > 0 && candidates.length) {
       h += `<div class="smallnote">Showing the newest eligible classmate posts from this week (last ${Number(d.recent_post_window_days || 4)} days), newest first. Review each classmate's actual message before approving.</div>`;
       h += `<div class="btnrow"><button class="btn" data-act="submit_replies" data-id="${d.id}">
         Approve &amp; Submit Selected Replies</button></div>
@@ -452,9 +454,13 @@ function draftBlock(d, r, label, text, isReply) {
       <input type="checkbox" class="peer-select" data-topic="${d.id}" data-entry="${eid}"> Select this reply for submission
     </label>` : ""}
     <div class="btnrow"><button class="btn" data-act="copy" data-id="${d.id}" data-entry="${eid}">Copy</button>
-      <button class="btn secondary" data-act="redraft" data-id="${d.id}" data-entry="${eid}">Redraft…</button>
+      <button class="btn secondary" data-act="edit" data-id="${d.id}" data-entry="${eid}">Edit</button>
+      <button class="btn secondary" data-act="redraft" data-id="${d.id}" data-entry="${eid}">Regenerate</button>
       ${!isReply ? `<button class="btn" data-act="submit_initial" data-id="${d.id}" style="grid-column:1 / -1">Approve &amp; Submit Initial Post</button>` : ""}
-      <button class="btn ghost" data-act="${r ? "replied" : "posted"}" data-id="${d.id}" data-entry="${eid}" style="grid-column:1 / -1">${r ? "I replied manually - remove draft" : "I posted manually - remove draft"}</button></div></div>`;
+      ${isReply
+        ? `<button class="btn ghost" data-act="delete_reply_draft" data-id="${d.id}" data-entry="${eid}" style="grid-column:1 / -1">Delete Draft (not Canvas)</button>`
+        : `<button class="btn ghost" data-act="posted" data-id="${d.id}" data-entry="" style="grid-column:1 / -1">I posted manually - verify in Canvas</button>`}
+      </div></div>`;
 }
 
 async function sha256Text(text) {
@@ -468,12 +474,18 @@ async function discAction(b) {
   if (act === "submit_replies" || act === "submit_initial") {
     const d = openDiscs().find(x => String(x.id) === String(id));
     if (!d) return alert("Discussion was not found for the current week. Refresh first.");
+    const verified = verifiedDiscussionStatus(state, d, weekKey());
+    if (verified.complete) return alert("Canvas already shows the required replies. Nothing to submit.");
     const chosen = act === "submit_initial" ? [null] :
       [...$("discList").querySelectorAll('input.peer-select:checked')].filter(el => el.dataset.topic === id)
-        .map(el => (d.reply_drafts || []).find(r => String(r.entry_id) === el.dataset.entry))
+        .map(el => verified.pending.find(r => String(r.entry_id) === el.dataset.entry))
         .filter(Boolean);
-    if (!chosen.length || chosen.length > (act === "submit_initial" ? 1 : 2)) {
-      return alert("Select one or two replies to different classmates before submitting.");
+    const maxAllowed = act === "submit_initial" ? 1 :
+      Math.min(2, Math.max(0, verified.required - verified.count));
+    if (!chosen.length || chosen.length > maxAllowed) {
+      return alert(maxAllowed ? "Select up to " + maxAllowed +
+        " unanswered classmate" + (maxAllowed === 1 ? "" : "s") + " to finish this discussion."
+        : "Canvas already shows all required replies. Nothing more to submit.");
     }
     const people = chosen.filter(Boolean).map(r => r.to);
     if (people.length !== new Set(people).size) return alert("Choose different classmates.");
@@ -501,6 +513,29 @@ async function discAction(b) {
       })
     }, "Submitting only the responses you approved - approve Duo if asked.");
   }
+  if (act === "edit") {
+    const ta = $("ta-" + id + "-" + entry);
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    return;
+  }
+  if (act === "delete_reply_draft") {
+    if (!entry || !confirm("Delete this UNSENT draft from the app? This will not delete a Canvas reply.")) return;
+    try {
+      b.disabled = true;
+      await dispatch({
+        action: "disc_mark",
+        payload: JSON.stringify({ id, kind: "delete_reply_draft", entry_id: entry })
+      });
+      const d = openDiscs().find(x => String(x.id) === String(id));
+      if (d) d.reply_drafts = (d.reply_drafts || []).filter(r => String(r.entry_id) !== entry);
+      renderDiscussions();
+      startPolling(true);
+    } catch (e) {
+      alert("Couldn't delete the draft: " + e.message);
+      b.disabled = false;
+    }
+    return;
+  }
   if (act === "copy") {
     const ta = $(`ta-${id}-${entry}`);
     try { await navigator.clipboard.writeText(ta.value); }
@@ -513,6 +548,9 @@ async function discAction(b) {
     if (note === null) return;
     return act2({ action: "redraft", payload: JSON.stringify({ id, kind: entry ? "reply" : "post", entry_id: entry || undefined, note }) },
       "Writing a new draft - about 1 minute…");
+  }
+  if (act === "posted") {
+    return act2({action: "discussions"}, "Verifying your submitted initial post in Canvas - approve Duo if requested.");
   }
   if (act === "hide" && !confirm("Hide this discussion from the list?")) return;
   const payload = act === "hide" ? { id } : act === "posted" ? { id, kind: "post" } : { id, entry_id: entry };
