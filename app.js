@@ -138,7 +138,10 @@ function render() {
   renderDiscussions();
   renderNotif();
   updateDots();
-  if (store.get("cpt_tab") === "more") store.set("cpt_seen_msgs", String((state.inbox || []).length));
+  if (store.get("cpt_tab") === "more") {
+    const reminders = (state.inbox || []).filter(m => /^Due tomorrow:/i.test(m.text || ""));
+    store.set("cpt_seen_reminder", reminders.length ? reminders[reminders.length - 1].t : "");
+  }
 }
 
 function renderUpcoming() {
@@ -664,14 +667,19 @@ function showPage(name) {
   $("subtitle").textContent = { week: "Weekly Work Hour Log", due: "Due dates – all courses", disc: "Discussion drafts", more: "Messages & settings" }[name];
   if (name === "disc") store.set("cpt_seen_disc", discSig());
   store.set("cpt_tab", name);
-  if (name === "more") store.set("cpt_seen_msgs", String((state && state.inbox || []).length));
+  if (name === "more") {
+    const reminders = (state && state.inbox || []).filter(m => /^Due tomorrow:/i.test(m.text || ""));
+    store.set("cpt_seen_reminder", reminders.length ? reminders[reminders.length - 1].t : "");
+  }
   window.scrollTo(0, 0);
   updateDots();
 }
 function updateDots() {
   if (!state) return;
-  const seen = parseInt(store.get("cpt_seen_msgs") || "0", 10);
-  const unread = (state.inbox || []).length > seen && store.get("cpt_tab") !== "more";
+  const seen = store.get("cpt_seen_reminder") || "";
+  const unread = (state.inbox || []).some(m =>
+    /^Due tomorrow:/i.test(m.text || "") && m.t > seen
+  ) && store.get("cpt_tab") !== "more";
   $("moreDot").classList.toggle("hidden", !unread);
   const st = (state.upcoming_status && state.upcoming_status.items) || {};
   const soon = Date.now() + 2 * 864e5;
