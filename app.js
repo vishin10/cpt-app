@@ -138,7 +138,10 @@ function render() {
   renderDiscussions();
   renderNotif();
   updateDots();
-  if (store.get("cpt_tab") === "more") store.set("cpt_seen_msgs", String((state.inbox || []).length));
+  if (store.get("cpt_tab") === "more") {
+    const reminders = (state.inbox || []).filter(m => /^Due tomorrow:/i.test(m.text || ""));
+    store.set("cpt_seen_reminder", reminders.length ? reminders[reminders.length - 1].t : "");
+  }
 }
 
 function renderUpcoming() {
@@ -328,10 +331,11 @@ async function renderNotif() {
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
   const on = Notification.permission === "granted" && sub;
-  $("notifState").textContent = on ? "On - you'll get Friday reminders and Duo alerts." :
+  $("notifState").textContent = on ? "On - reminders only when Canvas verifies unfinished work due tomorrow." :
     Notification.permission === "denied" ? "Blocked - turn on in iPhone Settings → Notifications → CPT Hours." : "Off";
   $("notifBtn").classList.toggle("hidden", !!on);
-  $("testBtn").classList.toggle("hidden", !on);
+  // No test push: only verified, unsubmitted work due tomorrow can trigger a phone alert.
+  $("testBtn").classList.add("hidden");
 }
 
 function b64ToU8(b64) {
@@ -351,11 +355,11 @@ $("notifBtn").onclick = async () => {
     const sub = (await reg.pushManager.getSubscription()) ||
       await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(state.vapid.public) });
     await dispatch({ action: "subscribe", payload: JSON.stringify(sub.toJSON()) });
-    alert("Done! You'll get a confirmation notification in about a minute.");
+    alert("Notifications enabled. You will only be alerted for verified unfinished assignments due tomorrow.");
     renderNotif();
   } catch (e) { alert("Couldn't turn on notifications: " + e.message); }
 };
-$("testBtn").onclick = () => act({ action: "test" }, "Sending a test notification…");
+$("testBtn").onclick = () => alert("Test pushes are disabled. Reminders only arrive for verified, unsubmitted work due tomorrow.");
 
 
 
@@ -663,14 +667,19 @@ function showPage(name) {
   $("subtitle").textContent = { week: "Weekly Work Hour Log", due: "Due dates – all courses", disc: "Discussion drafts", more: "Messages & settings" }[name];
   if (name === "disc") store.set("cpt_seen_disc", discSig());
   store.set("cpt_tab", name);
-  if (name === "more") store.set("cpt_seen_msgs", String((state && state.inbox || []).length));
+  if (name === "more") {
+    const reminders = (state && state.inbox || []).filter(m => /^Due tomorrow:/i.test(m.text || ""));
+    store.set("cpt_seen_reminder", reminders.length ? reminders[reminders.length - 1].t : "");
+  }
   window.scrollTo(0, 0);
   updateDots();
 }
 function updateDots() {
   if (!state) return;
-  const seen = parseInt(store.get("cpt_seen_msgs") || "0", 10);
-  const unread = (state.inbox || []).length > seen && store.get("cpt_tab") !== "more";
+  const seen = store.get("cpt_seen_reminder") || "";
+  const unread = (state.inbox || []).some(m =>
+    /^Due tomorrow:/i.test(m.text || "") && m.t > seen
+  ) && store.get("cpt_tab") !== "more";
   $("moreDot").classList.toggle("hidden", !unread);
   const st = (state.upcoming_status && state.upcoming_status.items) || {};
   const soon = Date.now() + 2 * 864e5;
