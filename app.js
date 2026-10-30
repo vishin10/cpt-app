@@ -153,8 +153,20 @@ function renderUpcoming() {
     const day = due.toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "long", month: "short", day: "numeric" });
     if (day !== lastDay) { html += `<div class="day">${escapeHtml(day)}</div>`; lastDay = day; }
     const s = status[String(it.id)];
+    // Canvas marks graded discussions differently from upload assignments.
+    // Require this week's verified discussion history before changing their
+    // due-date status. 1/2 replies means INCOMPLETE, not "Submitted".
+    const currentHistory = state.discussion_history;
+    const weekOfDue = weekKey(due);
+    const discussion = currentHistory && weekOfDue === currentHistory.week_start
+      ? discussionDueStatus(state, it, weekOfDue,
+          Number(config && config.default_discussion_replies) || 2)
+      : null;
     let st = '<span class="st unk">—</span>';
-    if (s && s.submitted) st = '<span class="st good">Submitted ✓</span>';
+    if (discussion) {
+      st = '<span class="st ' + discussion.tone + '">' +
+        escapeHtml(discussion.text) + '</span>';
+    } else if (s && s.submitted) st = '<span class="st good">Submitted ✓</span>';
     else if (s && s.missing) st = '<span class="st bad">Missing</span>';
     else if (s) st = due.getTime() < now ? '<span class="st bad">Not submitted</span>' : '<span class="st">Not submitted</span>';
     const ci = courses.indexOf(it.course) % 3;
@@ -166,7 +178,11 @@ function renderUpcoming() {
   $("upcoming").innerHTML = html || '<div class="sub">Nothing due in the next 3 weeks.</div>';
   const chk = state.upcoming_status && state.upcoming_status.checked;
   $("upcomingNote").textContent = `Due dates updated ${fmt(up.updated)}.` +
-    (chk ? ` Submitted status as of ${fmt(chk)} (updates when the agent logs in to Canvas).` : " Submitted status appears after the next Canvas check.");
+    (chk ? ` Assignment submission statuses checked ${fmt(chk)}.` :
+      " Assignment statuses appear after the next Canvas check.") +
+    (state.discussion_history && state.discussion_history.week_start === weekKey()
+      ? ` Discussion posts and replies verified ${fmt(state.discussion_history.checked_at)}.`
+      : " Discussion progress appears after fetching this week's Canvas discussions.");
 }
 
 function buildHours(key, hours) {
