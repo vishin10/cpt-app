@@ -361,17 +361,17 @@ function renderDiscussions() {
   $("discList").innerHTML = list.map((d) => {
     const ci = courses.indexOf(d.course) % 3;
     const repliesLeft = Math.max(0, (d.replies_needed || 0) - (d.replies_done || 0));
-    const status = [d.posted || d.post_done ? "Initial post ✓" : "Initial post needed",
+    const status = [d.posted || d.post_done ? "Initial post ✓" : (d.canvas_entries_verified ? "Initial post needed" : "Initial post unverified"),
       d.replies_needed ? `Replies ${d.replies_done || 0}/${d.replies_needed}` : ""].filter(Boolean).join(" · ");
     let h = `<div class="disc"><span class="course${ci ? " c" + ci : ""}">${escapeHtml(d.course)}</span>
       <h3>${escapeHtml(d.title)}</h3><div class="sub">Due ${escapeHtml(d.due_text || "")} · ${escapeHtml(status)}</div>
       <details><summary>Instructor prompt</summary><div class="prompt">${escapeHtml(d.prompt)}</div></details>`;
+    if (d.rubric) h += `<details><summary>Grading rubric / assignment instructions</summary><div class="prompt">${escapeHtml(d.rubric)}</div></details>`;
     const reading = d.course_materials || [];
     const sources = d.research_sources || [];
     h += `<details><summary>Research & course evidence (${reading.length} course items, ${sources.length} web sources)</summary>
       <div class="smallnote">Check cited works, APA details, and AI-use requirements before submitting. Materials and excerpts may be incomplete.</div>
-      ${d.research_verification === "manual_source_review_required"
-        ? '<div class="smallnote">External source verification is incomplete.</div>' : ""}
+      <div class="smallnote">Research links support review, but bibliographic claims and quotations have not been independently guaranteed.</div>
       ${d.research_error ? '<div class="smallnote">Research unavailable: ' + escapeHtml(d.research_error) + '</div>' : ""}
       ${(d.course_material_warnings || []).length
         ? '<div class="smallnote">' + escapeHtml(d.course_material_warnings.join("; ")) + '</div>' : ""}
