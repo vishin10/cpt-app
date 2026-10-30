@@ -480,8 +480,12 @@ async function discAction(b) {
       [...$("discList").querySelectorAll('input.peer-select:checked')].filter(el => el.dataset.topic === id)
         .map(el => verified.pending.find(r => String(r.entry_id) === el.dataset.entry))
         .filter(Boolean);
-    if (!chosen.length || chosen.length > (act === "submit_initial" ? 1 : 2)) {
-      return alert("Select one or two replies to different classmates before submitting.");
+    const maxAllowed = act === "submit_initial" ? 1 :
+      Math.min(2, Math.max(0, verified.required - verified.count));
+    if (!chosen.length || chosen.length > maxAllowed) {
+      return alert(maxAllowed ? "Select up to " + maxAllowed +
+        " unanswered classmate" + (maxAllowed === 1 ? "" : "s") + " to finish this discussion."
+        : "Canvas already shows all required replies. Nothing more to submit.");
     }
     const people = chosen.filter(Boolean).map(r => r.to);
     if (people.length !== new Set(people).size) return alert("Choose different classmates.");
