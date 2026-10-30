@@ -328,10 +328,11 @@ async function renderNotif() {
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
   const on = Notification.permission === "granted" && sub;
-  $("notifState").textContent = on ? "On - you'll get Friday reminders and Duo alerts." :
+  $("notifState").textContent = on ? "On - reminders only when Canvas verifies unfinished work due tomorrow." :
     Notification.permission === "denied" ? "Blocked - turn on in iPhone Settings → Notifications → CPT Hours." : "Off";
   $("notifBtn").classList.toggle("hidden", !!on);
-  $("testBtn").classList.toggle("hidden", !on);
+  // No test push: only verified, unsubmitted work due tomorrow can trigger a phone alert.
+  $("testBtn").classList.add("hidden");
 }
 
 function b64ToU8(b64) {
@@ -351,11 +352,11 @@ $("notifBtn").onclick = async () => {
     const sub = (await reg.pushManager.getSubscription()) ||
       await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(state.vapid.public) });
     await dispatch({ action: "subscribe", payload: JSON.stringify(sub.toJSON()) });
-    alert("Done! You'll get a confirmation notification in about a minute.");
+    alert("Notifications enabled. You will only be alerted for verified unfinished assignments due tomorrow.");
     renderNotif();
   } catch (e) { alert("Couldn't turn on notifications: " + e.message); }
 };
-$("testBtn").onclick = () => act({ action: "test" }, "Sending a test notification…");
+$("testBtn").onclick = () => alert("Test pushes are disabled. Reminders only arrive for verified, unsubmitted work due tomorrow.");
 
 
 
