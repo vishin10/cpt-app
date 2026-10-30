@@ -412,19 +412,24 @@ function renderDiscussions() {
             escapeHtml(src.finding || "") + '</div>';
         }).join("")}
         </details>` : '<div class="smallnote">No independently verified peer-specific source attached yet. Use Redraft to search available verified source options.</div>';
-      h += `<details><summary>${escapeHtml(r.to)}'s post</summary><div class="prompt">${escapeHtml(r.their_post)}</div></details>`
+      const recentAt = r.updated_at || r.created_at;
+      const postedAt = recentAt ? " · " + escapeHtml(fmt(recentAt)) : "";
+      h += `<details><summary>${escapeHtml(r.to)}'s recent post${postedAt}</summary><div class="prompt">${escapeHtml(r.their_post)}</div></details>`
         + evidence
         + draftBlock(d, r, `Reply to ${r.to.split(" ")[0]}`, r.draft, true);
     }
     if (d.posted && candidates.length) {
+      h += `<div class="smallnote">Showing the newest eligible classmate posts from this week (last ${Number(d.recent_post_window_days || 4)} days), newest first. Review each classmate's actual message before approving.</div>`;
       h += `<div class="btnrow"><button class="btn" data-act="submit_replies" data-id="${d.id}">
         Approve &amp; Submit Selected Replies</button></div>
         <div class="smallnote">Select up to two classmates. Review or edit each reply above before approving.</div>`;
     }
     if (repliesLeft && !candidates.length) {
       const reason = d.can_see_classmates
-        ? (d.research_error ? "Classmates' posts are visible, but research failed; refresh to generate replies from the course materials."
-           : "Classmates' posts are visible. No reply drafts are ready yet; tap Find discussions now.")
+        ? d.recent_posts_available === 0
+          ? "Classmates have posted, but there are no recent, unanswered posts from the past " + (d.recent_post_window_days || 4) + " days. The agent will check again rather than drafting a reply to an old post."
+          : (d.research_error ? "Recent classmates' posts are visible, but research or drafting needs another check. Tap Find discussions now."
+             : "Recent classmates' posts are available. No drafts are ready yet; tap Find discussions now.")
         : "Classmates' posts aren't accessible yet. Check Canvas after your initial post.";
       h += `<div class="smallnote">${escapeHtml(reason)}</div>`;
     }
