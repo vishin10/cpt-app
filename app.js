@@ -344,7 +344,8 @@ $("testBtn").onclick = () => act({ action: "test" }, "Sending a test notificatio
 
 
 // ---------------------------------------------------------------- discussions
-const openDiscs = () => ((state && state.discussions) || []).filter((d) => !d.hidden);
+const openDiscs = () => ((state && state.discussions) || []).filter((d) =>
+  !d.hidden && d.due && weekKey(new Date(d.due)) === weekKey());
 const discSig = () => openDiscs().map((d) => `${d.id}:${(d.post_draft || "").length}:${(d.reply_drafts || []).length}`).join("|");
 const words = (t) => (t.trim().match(/\S+/g) || []).length;
 
@@ -397,13 +398,22 @@ function renderDiscussions() {
       h += d.post_draft ? draftBlock(d, null, "Your post draft", d.post_draft, false) :
         '<div class="smallnote">Draft not ready - tap Find discussions now.</div>';
     }
-    for (const r of (d.reply_drafts || []).filter((r) => !r.done)) {
+    const candidates = (d.reply_drafts || []).filter((r) => !r.done);
+    for (const r of candidates) {
       h += `<details><summary>${escapeHtml(r.to)}'s post</summary><div class="prompt">${escapeHtml(r.their_post)}</div></details>` +
         draftBlock(d, r, `Reply to ${r.to.split(" ")[0]}`, r.draft, true);
     }
-    if (repliesLeft && !(d.reply_drafts || []).some((r) => !r.done)) {
-      h += `<div class="smallnote">${d.can_see_classmates ? "No more classmates' posts to reply to yet." :
-        "Classmates' posts unlock after you post. Post first, then tap Find discussions now to get reply drafts."}</div>`;
+    if (d.posted && candidates.length) {
+      h += `<div class="btnrow"><button class="btn" data-act="submit_replies" data-id="${d.id}">
+        Approve &amp; Submit Selected Replies</button></div>
+        <div class="smallnote">Select up to two classmates. Review or edit each reply above before approving.</div>`;
+    }
+    if (repliesLeft && !candidates.length) {
+      const reason = d.can_see_classmates
+        ? (d.research_error ? "Classmates' posts are visible, but research failed; refresh to generate replies from the course materials."
+           : "Classmates' posts are visible. No reply drafts are ready yet; tap Find discussions now.")
+        : "Classmates' posts aren't accessible yet. Check Canvas after your initial post.";
+      h += `<div class="smallnote">${escapeHtml(reason)}</div>`;
     }
     h += `<div class="btnrow"><a class="btn ghost" style="text-align:center;text-decoration:none" href="${escapeHtml(d.url)}" target="_blank" rel="noopener">Open in Canvas</a>
       <button class="btn ghost" data-act="hide" data-id="${d.id}">Hide</button></div></div>`;
@@ -419,14 +429,59 @@ function draftBlock(d, r, label, text, isReply) {
   const eid = r ? r.entry_id : "";
   return `<div class="draftbox"><div class="draft-label"><span>${escapeHtml(label)}</span><span class="wc">${words(text || "")} words</span></div>
     <textarea class="draft${isReply ? " reply" : ""}" id="ta-${d.id}-${eid}">${escapeHtml(text || "")}</textarea>
+    ${isReply ? `<label class="smallnote" style="display:block;margin:8px 0">
+      <input type="checkbox" class="peer-select" data-topic="${d.id}" data-entry="${eid}"> Select this reply for submission
+    </label>` : ""}
     <div class="btnrow"><button class="btn" data-act="copy" data-id="${d.id}" data-entry="${eid}">Copy</button>
       <button class="btn secondary" data-act="redraft" data-id="${d.id}" data-entry="${eid}">Redraft…</button>
-      <button class="btn ghost" data-act="${r ? "replied" : "posted"}" data-id="${d.id}" data-entry="${eid}" style="grid-column:1 / -1">${r ? "I replied - remove this draft" : "I posted it - remove this draft"}</button></div></div>`;
+      ${!isReply ? `<button class="btn" data-act="submit_initial" data-id="${d.id}" style="grid-column:1 / -1">Approve &amp; Submit Initial Post</button>` : ""}
+      <button class="btn ghost" data-act="${r ? "replied" : "posted"}" data-id="${d.id}" data-entry="${eid}" style="grid-column:1 / -1">${r ? "I replied manually - remove draft" : "I posted manually - remove draft"}</button></div></div>`;
+}
+
+async function sha256Text(text) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
 }
 
 async function discAction(b) {
   const id = b.dataset.id, entry = b.dataset.entry || "";
   const act = b.dataset.act;
+  if (act === "submit_replies" || act === "submit_initial") {
+    const d = openDiscs().find(x => String(x.id) === String(id));
+    if (!d) return alert("Discussion was not found for the current week. Refresh first.");
+    const chosen = act === "submit_initial" ? [null] :
+      [...$("discList").querySelectorAll('input.peer-select:checked')].filter(el => el.dataset.topic === id)
+        .map(el => (d.reply_drafts || []).find(r => String(r.entry_id) === el.dataset.entry))
+        .filter(Boolean);
+    if (!chosen.length || chosen.length > (act === "submit_initial" ? 1 : 2)) {
+      return alert("Select one or two replies to different classmates before submitting.");
+    }
+    const people = chosen.filter(Boolean).map(r => r.to);
+    if (people.length !== new Set(people).size) return alert("Choose different classmates.");
+    const items = chosen.map(r => ({
+      entry_id: r ? r.entry_id : "",
+      body: $ (`ta-${id}-${r ? r.entry_id : ""}`).value,
+      original: r ? r.draft : d.post_draft
+    }));
+    if (items.some(item => !item.body || item.body.trim().length < 30)) {
+      return alert("Each approved response needs at least 30 characters.");
+    }
+    const msg = act === "submit_initial" ?
+      "Submit the exact initial post currently shown above to Canvas?" :
+      "Submit " + items.length + " exact reviewed replies to " + people.join(" and ") + " in Canvas?";
+    if (!confirm(msg + "\n\nCanvas will post these on your behalf. Review your text and citations first.")) return;
+    for (const item of items) {
+      item.draft_hash = await sha256Text(item.original || "");
+      delete item.original;
+    }
+    return act2({
+      action: "disc_submit",
+      payload: JSON.stringify({
+        course_id: d.course_id, topic_id: d.id,
+        kind: act === "submit_initial" ? "initial" : "replies", items
+      })
+    }, "Submitting only the responses you approved - approve Duo if asked.");
+  }
   if (act === "copy") {
     const ta = $(`ta-${id}-${entry}`);
     try { await navigator.clipboard.writeText(ta.value); }
