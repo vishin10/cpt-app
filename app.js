@@ -400,8 +400,21 @@ function renderDiscussions() {
     }
     const candidates = (d.reply_drafts || []).filter((r) => !r.done);
     for (const r of candidates) {
-      h += `<details><summary>${escapeHtml(r.to)}'s post</summary><div class="prompt">${escapeHtml(r.their_post)}</div></details>` +
-        draftBlock(d, r, `Reply to ${r.to.split(" ")[0]}`, r.draft, true);
+      const refs = r.supporting_sources || [];
+      const evidence = refs.length ? `<details><summary>Evidence selected for ${escapeHtml(r.to)} (${refs.length})</summary>
+        <div class="smallnote">This source was selected for the classmate's actual argument. Verify that your reply accurately applies its findings.</div>
+        ${refs.map(src => {
+          const url = (src.url || "").startsWith("https://doi.org/")
+            ? '<a href="' + escapeHtml(src.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(src.author || "Verified study") + '</a>'
+            : escapeHtml(src.author || "Research source");
+          return '<div class="smallnote">' + url + '</div><div class="prompt">' +
+            escapeHtml(src.apa || "") + '</div><div class="smallnote">' +
+            escapeHtml(src.finding || "") + '</div>';
+        }).join("")}
+        </details>` : '<div class="smallnote">No independently verified peer-specific source attached yet. Use Redraft to search available verified source options.</div>';
+      h += `<details><summary>${escapeHtml(r.to)}'s post</summary><div class="prompt">${escapeHtml(r.their_post)}</div></details>`
+        + evidence
+        + draftBlock(d, r, `Reply to ${r.to.split(" ")[0]}`, r.draft, true);
     }
     if (d.posted && candidates.length) {
       h += `<div class="btnrow"><button class="btn" data-act="submit_replies" data-id="${d.id}">
