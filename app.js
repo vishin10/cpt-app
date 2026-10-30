@@ -351,7 +351,7 @@ const words = (t) => (t.trim().match(/\S+/g) || []).length;
 function renderDiscussions() {
   const list = openDiscs();
   const scanned = state.discussions_scanned;
-  $("discNote").textContent = scanned ? `Last checked ${fmt(scanned)} · checks automatically Mondays 9 AM and when the agent logs in on Fridays.` :
+  $("discNote").textContent = scanned ? `Last checked ${fmt(scanned)} · scheduled weekday checks and on-demand scan. Research sources must be reviewed before posting.` :
     "Not checked yet - tap Find discussions now (approve Duo).";
   if (!list.length) { $("discList").innerHTML = `<div class="sub">${scanned ? "Nothing pending in the next 10 days 🎉" : "—"}</div>`; return; }
   // keep any edits the user is making
@@ -366,6 +366,33 @@ function renderDiscussions() {
     let h = `<div class="disc"><span class="course${ci ? " c" + ci : ""}">${escapeHtml(d.course)}</span>
       <h3>${escapeHtml(d.title)}</h3><div class="sub">Due ${escapeHtml(d.due_text || "")} · ${escapeHtml(status)}</div>
       <details><summary>Instructor prompt</summary><div class="prompt">${escapeHtml(d.prompt)}</div></details>`;
+    const reading = d.course_materials || [];
+    const sources = d.research_sources || [];
+    h += `<details><summary>Research & course evidence (${reading.length} course items, ${sources.length} web sources)</summary>
+      <div class="smallnote">Check cited works, APA details, and AI-use requirements before submitting. Materials and excerpts may be incomplete.</div>
+      ${d.research_verification === "manual_source_review_required"
+        ? '<div class="smallnote">External source verification is incomplete.</div>' : ""}
+      ${d.research_error ? '<div class="smallnote">Research unavailable: ' + escapeHtml(d.research_error) + '</div>' : ""}
+      ${(d.course_material_warnings || []).length
+        ? '<div class="smallnote">' + escapeHtml(d.course_material_warnings.join("; ")) + '</div>' : ""}
+      <h4>Relevant Canvas module items</h4>
+      ${reading.length ? reading.map(m => {
+        const url = (m.url || "").startsWith("https://belhaven.instructure.com/")
+          ? '<a target="_blank" rel="noopener noreferrer" href="' + escapeHtml(m.url) + '">' + escapeHtml(m.title) + '</a>'
+          : escapeHtml(m.title);
+        return '<div class="smallnote">' + url + ' · ' + escapeHtml(m.module || "") +
+          '<div class="prompt" style="white-space:pre-wrap">' + escapeHtml((m.excerpt || "").slice(0,1800)) + '</div></div>';
+      }).join("") : '<div class="smallnote">No accessible matching module content found.</div>'}
+      <h4>Web research and verification</h4>
+      <div class="prompt" style="white-space:pre-wrap">${escapeHtml(d.research_notes || "Not available yet.")}</div>
+      ${sources.map(ref => {
+        const link = /^https:\/\//.test(ref.url || "")
+          ? '<a href="' + escapeHtml(ref.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(ref.title || ref.url) + '</a>'
+          : escapeHtml(ref.title || "Source");
+        return '<div class="smallnote">' + link + '</div>';
+      }).join("")}
+    </details>`;
+
     if (!d.posted && !d.post_done) {
       h += d.post_draft ? draftBlock(d, null, "Your post draft", d.post_draft, false) :
         '<div class="smallnote">Draft not ready - tap Find discussions now.</div>';
