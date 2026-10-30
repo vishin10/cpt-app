@@ -427,8 +427,9 @@ function renderDiscussions() {
 
 function draftBlock(d, r, label, text, isReply) {
   const eid = r ? r.entry_id : "";
-  return `<div class="draftbox"><div class="draft-label"><span>${escapeHtml(label)}</span><span class="wc">${words(text || "")} words</span></div>
-    <textarea class="draft${isReply ? " reply" : ""}" id="ta-${d.id}-${eid}">${escapeHtml(text || "")}</textarea>
+  const displayText = isReply ? cleanPeerReply(text || "") : (text || "");
+  return `<div class="draftbox"><div class="draft-label"><span>${escapeHtml(label)}</span><span class="wc">${words(displayText)} words</span></div>
+    <textarea class="draft${isReply ? " reply" : ""}" id="ta-${d.id}-${eid}">${escapeHtml(displayText)}</textarea>
     ${isReply ? `<label class="smallnote" style="display:block;margin:8px 0">
       <input type="checkbox" class="peer-select" data-topic="${d.id}" data-entry="${eid}"> Select this reply for submission
     </label>` : ""}
