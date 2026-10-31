@@ -139,7 +139,7 @@ function render() {
   renderNotif();
   updateDots();
   if (store.get("cpt_tab") === "more") {
-    const reminders = (state.inbox || []).filter(m => /^Due tomorrow:/i.test(m.text || ""));
+    const reminders = (state.inbox || []).filter(m => /^(Due tomorrow:|CPT Hours: Duo approval may be needed soon)/i.test(m.text || ""));
     store.set("cpt_seen_reminder", reminders.length ? reminders[reminders.length - 1].t : "");
   }
 }
@@ -341,7 +341,7 @@ async function renderNotif() {
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
   const on = Notification.permission === "granted" && sub;
-  $("notifState").textContent = on ? "On - reminders only when Canvas verifies unfinished work due tomorrow." :
+  $("notifState").textContent = on ? "On - alerts for unfinished work due tomorrow and a heads-up before a needed Duo sign-in." :
     Notification.permission === "denied" ? "Blocked - turn on in iPhone Settings → Notifications → CPT Hours." : "Off";
   $("notifBtn").classList.toggle("hidden", !!on);
   // No test push: only verified, unsubmitted work due tomorrow can trigger a phone alert.
@@ -365,11 +365,11 @@ $("notifBtn").onclick = async () => {
     const sub = (await reg.pushManager.getSubscription()) ||
       await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(state.vapid.public) });
     await dispatch({ action: "subscribe", payload: JSON.stringify(sub.toJSON()) });
-    alert("Notifications enabled. You will only be alerted for verified unfinished assignments due tomorrow.");
+    alert("Notifications enabled for unfinished work due tomorrow and advance Duo login heads-ups.");
     renderNotif();
   } catch (e) { alert("Couldn't turn on notifications: " + e.message); }
 };
-$("testBtn").onclick = () => alert("Test pushes are disabled. Reminders only arrive for verified, unsubmitted work due tomorrow.");
+$("testBtn").onclick = () => alert("Test pushes are disabled. Only due-tomorrow and Duo sign-in alerts are enabled.");
 
 
 
@@ -678,7 +678,7 @@ function showPage(name) {
   if (name === "disc") store.set("cpt_seen_disc", discSig());
   store.set("cpt_tab", name);
   if (name === "more") {
-    const reminders = (state && state.inbox || []).filter(m => /^Due tomorrow:/i.test(m.text || ""));
+    const reminders = (state && state.inbox || []).filter(m => /^(Due tomorrow:|CPT Hours: Duo approval may be needed soon)/i.test(m.text || ""));
     store.set("cpt_seen_reminder", reminders.length ? reminders[reminders.length - 1].t : "");
   }
   window.scrollTo(0, 0);
@@ -688,7 +688,7 @@ function updateDots() {
   if (!state) return;
   const seen = store.get("cpt_seen_reminder") || "";
   const unread = (state.inbox || []).some(m =>
-    /^Due tomorrow:/i.test(m.text || "") && m.t > seen
+    /^(Due tomorrow:|CPT Hours: Duo approval may be needed soon)/i.test(m.text || "") && m.t > seen
   ) && store.get("cpt_tab") !== "more";
   $("moreDot").classList.toggle("hidden", !unread);
   const st = (state.upcoming_status && state.upcoming_status.items) || {};
