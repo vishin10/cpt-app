@@ -165,13 +165,22 @@ function renderUpcoming() {
       ? discussionDueStatus(state, it, weekOfDue,
           Number(config && config.default_discussion_replies) || 2)
       : null;
+    // A calendar refresh is not a Canvas submission check. Never claim
+    // "Not submitted" from stale flags or an unverified Canvas response.
+    const checkedAt = state.upcoming_status && state.upcoming_status.checked;
+    const checkedMillis = checkedAt ? new Date(checkedAt).getTime() : NaN;
+    const stale = !Number.isFinite(checkedMillis) ||
+      Date.now() - checkedMillis > 12 * 60 * 60 * 1000;
     let st = '<span class="st unk">—</span>';
     if (discussion) {
       st = '<span class="st ' + discussion.tone + '">' +
         escapeHtml(discussion.text) + '</span>';
-    } else if (s && s.submitted) st = '<span class="st good">Submitted ✓</span>';
+    } else if (s && s.verified === false) st = '<span class="st unk">Unable to verify</span>';
+    else if (s && s.submitted) st = '<span class="st good">Submitted ✓</span>';
+    else if (stale) st = '<span class="st unk">Check status</span>';
     else if (s && s.missing) st = '<span class="st bad">Missing</span>';
-    else if (s) st = due.getTime() < now ? '<span class="st bad">Not submitted</span>' : '<span class="st">Not submitted</span>';
+    else if (s && (s.verified === true || s.verified === undefined))
+      st = due.getTime() < now ? '<span class="st bad">Not submitted</span>' : '<span class="st">Not submitted</span>';
     const ci = courses.indexOf(it.course) % 3;
     const time = due.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" });
     html += `<div class="item"><a href="${escapeHtml(it.url)}" target="_blank" rel="noopener">
@@ -182,7 +191,7 @@ function renderUpcoming() {
   const chk = state.upcoming_status && state.upcoming_status.checked;
   $("upcomingNote").textContent = `Due dates updated ${fmt(up.updated)}.` +
     (chk ? ` Assignment submission statuses checked ${fmt(chk)}.` :
-      " Assignment statuses appear after the next Canvas check.") +
+      " Assignment statuses need verification in Canvas (tap Verify submissions).") +
     (state.discussion_history && state.discussion_history.week_start === weekKey()
       ? ` Discussion posts and replies verified ${fmt(state.discussion_history.checked_at)}.`
       : " Discussion progress appears after fetching this week's Canvas discussions.");
@@ -218,7 +227,7 @@ async function act(inputs, msg) {
   } catch (e) { alert(e.message); }
   finally { setButtons(false); }
 }
-function setButtons(dis) { ["confirmBtn", "doneBtn", "checkBtn"].forEach((id) => { $(id).disabled = dis; }); }
+function setButtons(dis) { ["confirmBtn", "doneBtn", "checkBtn", "upcomingBtn", "verifyStatusesBtn"].forEach((id) => { $(id).disabled = dis; }); }
 
 $("confirmBtn").onclick = () => {
   const [key, rec] = currentWeek(); const h = readHours(); if (!h || !rec) return;
@@ -230,6 +239,7 @@ $("doneBtn").onclick = () => { const [key] = currentWeek(); act({ action: "done"
 $("checkBtn").onclick = () => act({ action: "check" }, "Checking Canvas - approve the <b>Duo</b> push in about 1–2 minutes.");
 $("refreshBtn").onclick = () => refresh(true);
 $("upcomingBtn").onclick = () => act({ action: "init" }, "Refreshing due dates (no Duo needed)…");
+$("verifyStatusesBtn").onclick = () => act({ action: "statuses" }, "Checking each assignment directly in Canvas. Approve Duo if requested.");
 
 function startPolling(fresh = false) {
   pollUntil = Math.max(pollUntil, Date.now() + (fresh ? 8 : 3) * 60 * 1000);
