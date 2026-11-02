@@ -244,6 +244,18 @@ function renderUpcoming() {
     html += '<h3 class="due-section-heading">Still unfinished from last week</h3>' +
       displayItems(grouped.overdue);
   }
+  const previousHistory = archive.week_start === lastMonday &&
+    archive.discussion_history?.week_start === lastMonday
+    ? archive.discussion_history : null;
+  if (previousHistory && (previousHistory.items || []).length) {
+    const lastChecked = previousHistory.checked_at
+      ? 'Last checked ' + fmt(previousHistory.checked_at) + '. '
+      : '';
+    html += '<p class="note">' + escapeHtml(lastChecked) +
+      'Canvas discussion reply counts may have changed since this check.</p>' +
+      '<button class="btn secondary" id="verifyLastWeekRepliesBtn">' +
+      'Recheck last week\'s discussion replies (Duo)</button>';
+  }
   if (grouped.future.length) {
     html += '<h3 class="due-section-heading">Coming up</h3>' +
       displayItems(grouped.future);
@@ -262,6 +274,10 @@ function renderUpcoming() {
       </details>`;
   }
   $("upcoming").innerHTML = html;
+  const verifyLastWeek = $("verifyLastWeekRepliesBtn");
+  if (verifyLastWeek) verifyLastWeek.onclick = () =>
+    act({action: "disc_lastweek"},
+        "Rechecking last week's actual peer replies in Canvas. Approve Duo if requested.");
   const chk = state.upcoming_status && state.upcoming_status.checked;
   $("upcomingNote").textContent = `Due dates updated ${fmt(up.updated)}.` +
     (chk ? ` Assignment submission statuses checked ${fmt(chk)}.` :
