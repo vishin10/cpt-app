@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {previousMonday, groupDueDates} = require("../due-week-view.js");
+const {discussionDueStatus} = require("../due-discussion-status.js");
 
 const monday = "2026-11-02";
 const make = (id, due, done=false) => ({
@@ -65,4 +66,36 @@ test("unverified statuses are not considered completed", () => {
     [], monday, getWeek, () => false);
   assert.equal(groups.current.length, 1);
   assert.equal(groups.currentSubmitted.length, 0);
+});
+
+
+test("after a fresh prior-week Canvas recheck a completed discussion moves out of overdue", () => {
+  const due = {
+    ...make(988729, "2026-10-31T23:59:00-04:00"),
+    url: "https://belhaven.instructure.com/courses/51987/assignments/988729",
+    name: "Unit 3: Discussion Question 1"
+  };
+  const state = {
+    discussions: [],
+    discussion_history: {week_start: "2026-11-02", items: []}
+  };
+  const history = {
+    week_start: "2026-10-26",
+    items: [{
+      id: 634709, course_id: 51987, verified: true, title: due.name,
+      initial_posts: [{entry_id: 1}], required_replies: 2,
+      distinct_peers_replied_to: 1,
+      peer_replies: [{is_peer_reply: true, recipient_user_id: 10}]
+    }]
+  };
+  function groups() {
+    state.discussion_history = history;
+    return groupDueDates([], [due], monday, getWeek,
+      it => discussionDueStatus(state, it, history.week_start, 2).completed);
+  }
+  assert.deepEqual(groups().overdue.map(i => i.id), [988729]);
+  history.items[0].distinct_peers_replied_to = 2;
+  history.items[0].peer_replies.push({is_peer_reply: true, recipient_user_id: 11});
+  assert.deepEqual(groups().lastSubmitted.map(i => i.id), [988729]);
+  assert.deepEqual(groups().overdue, []);
 });
