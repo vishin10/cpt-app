@@ -107,7 +107,10 @@ function render() {
 
   const canConfirm = rec && ["pending", "failed", "retry"].includes(rec.status);
   $("hoursBox").classList.toggle("hidden", !canConfirm);
-  if (canConfirm && !$("hours").dataset.week) buildHours(key, rec.hours || (config && config.default_hours) || [7.5, 7.5, 7.5, 7.5, 7.5, 0, 0]);
+  if (canConfirm && !$("hours").dataset.week) {
+    const base = rec.hours || (config && config.default_hours) || [7.5, 7.5, 7.5, 7.5, 7.5, 0, 0];
+    buildHours(key, plannedWeekHours(key, base, config));
+  }
   if (!canConfirm) delete $("hours").dataset.week;
 
   // messages
@@ -200,14 +203,26 @@ function renderUpcoming() {
 function buildHours(key, hours) {
   const box = $("hours");
   box.dataset.week = key;
-  box.innerHTML = DAYS.map((d, i) =>
-    `<label>${d}<input inputmode="decimal" id="h${i}" value="${hours[i] ?? 0}"></label>`).join("");
+  const adjusted = plannedWeekHours(key, hours, config);
+  box.innerHTML = DAYS.map((d, i) => {
+    const reason = nonWorkingLabel(key, i, config);
+    return `<label title="${escapeHtml(reason || "")}">${d}
+      <input inputmode="decimal" id="h${i}" value="${adjusted[i]}" ${reason ? 'readonly aria-readonly="true"' : ""}></label>`;
+  }).join("");
+  const off = DAYS.map((d, i) => ({date: workDateForDay(key, i),
+    reason: nonWorkingLabel(key, i, config)})).filter(x => x.reason);
+  $("nonWorkNote").textContent = off.length
+    ? "0-hour days: " + off.map(x => x.date.slice(5) + " (" + x.reason + ")").join("; ") +
+      ". These days will be 0 hours in the log."
+    : "";
   box.querySelectorAll("input").forEach((el) => el.addEventListener("input", updateTotal));
   updateTotal();
 }
 function readHours() {
   const v = DAYS.map((_, i) => parseFloat(($(`h${i}`).value || "0").replace(",", ".")));
-  return v.every((x) => !isNaN(x) && x >= 0 && x <= 24) ? v : null;
+  const week = $("hours").dataset.week;
+  return v.every((x) => !isNaN(x) && x >= 0 && x <= 24) &&
+    (!week || nonWorkingViolations(week, v, config).length === 0) ? v : null;
 }
 function updateTotal() {
   const h = readHours();
@@ -232,7 +247,12 @@ function setButtons(dis) { ["confirmBtn", "doneBtn", "checkBtn", "upcomingBtn", 
 $("confirmBtn").onclick = () => {
   const [key, rec] = currentWeek(); const h = readHours(); if (!h || !rec) return;
   const total = +h.reduce((a, b) => a + b, 0).toFixed(2);
-  if (!confirm(`Submit ${rec.name} with ${total} hours?`)) return;
+  const off = DAYS.map((d, i) => ({
+    day: d, reason: nonWorkingLabel(key, i, config)
+  })).filter(x => x.reason);
+  const note = off.length ? "\n\n0-hour holiday/PTO days: " +
+    off.map(x => x.day + " (" + x.reason + ")").join(", ") : "";
+  if (!confirm(`Submit ${rec.name} with ${total} hours?` + note)) return;
   act({ action: "confirm", week: key, hours: h.join(",") }, "Submitting - approve the <b>Duo</b> push in about 1–2 minutes.");
 };
 $("doneBtn").onclick = () => { const [key] = currentWeek(); act({ action: "done", week: key }, "Marking as already submitted…"); };
@@ -648,7 +668,10 @@ function fitPaper() {
 $("previewBtn").onclick = () => {
   const [key, rec] = currentWeek();
   const editing = !$("hoursBox").classList.contains("hidden") && readHours();
-  const hours = editing || (rec && rec.hours) || (config && config.default_hours) || [7.5, 7.5, 7.5, 7.5, 7.5, 0, 0];
+  const source = editing || (rec && rec.hours) || (config && config.default_hours) || [7.5, 7.5, 7.5, 7.5, 7.5, 0, 0];
+  // Never rewrite the preview of an already-submitted historical document.
+  const locked = rec && ["submitted", "already_submitted"].includes(rec.status);
+  const hours = locked ? source : plannedWeekHours(key, source, config);
   const name = (config && config.student_name) || "";
   $("paper").srcdoc = docHtml(key, hours, name);
   $("previewName").textContent = `${(rec && rec.name) || docWeekLabel(key)} · ${fmtH(hours.reduce((a, b) => a + b, 0))}`;
