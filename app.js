@@ -149,48 +149,119 @@ function render() {
 
 function renderUpcoming() {
   const up = state.upcoming;
-  if (!up || !up.items) { $("upcoming").innerHTML = '<div class="sub">Tap "Refresh due dates" to load your courses.</div>'; return; }
-  const status = (state.upcoming_status && state.upcoming_status.items) || {};
-  const courses = [...new Set(up.items.map((i) => i.course))].sort();
-  const now = Date.now();
-  let html = "", lastDay = "";
-  for (const it of up.items) {
-    const due = new Date(it.due);
-    const day = due.toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "long", month: "short", day: "numeric" });
-    if (day !== lastDay) { html += `<div class="day">${escapeHtml(day)}</div>`; lastDay = day; }
-    const s = status[String(it.id)];
-    // Canvas marks graded discussions differently from upload assignments.
-    // Require this week's verified discussion history before changing their
-    // due-date status. 1/2 replies means INCOMPLETE, not "Submitted".
-    const currentHistory = state.discussion_history;
-    const weekOfDue = weekKey(due);
-    const discussion = currentHistory && weekOfDue === currentHistory.week_start
-      ? discussionDueStatus(state, it, weekOfDue,
-          Number(config && config.default_discussion_replies) || 2)
-      : null;
-    // A calendar refresh is not a Canvas submission check. Never claim
-    // "Not submitted" from stale flags or an unverified Canvas response.
-    const checkedAt = state.upcoming_status && state.upcoming_status.checked;
-    const checkedMillis = checkedAt ? new Date(checkedAt).getTime() : NaN;
-    const stale = !Number.isFinite(checkedMillis) ||
-      Date.now() - checkedMillis > 12 * 60 * 60 * 1000;
-    let st = '<span class="st unk">—</span>';
-    if (discussion) {
-      st = '<span class="st ' + discussion.tone + '">' +
-        escapeHtml(discussion.text) + '</span>';
-    } else if (s && s.verified === false) st = '<span class="st unk">Unable to verify</span>';
-    else if (s && s.submitted) st = '<span class="st good">Submitted ✓</span>';
-    else if (stale) st = '<span class="st unk">Check status</span>';
-    else if (s && s.missing) st = '<span class="st bad">Missing</span>';
-    else if (s && (s.verified === true || s.verified === undefined))
-      st = due.getTime() < now ? '<span class="st bad">Not submitted</span>' : '<span class="st">Not submitted</span>';
-    const ci = courses.indexOf(it.course) % 3;
-    const time = due.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" });
-    html += `<div class="item"><a href="${escapeHtml(it.url)}" target="_blank" rel="noopener">
-      <span class="course${ci ? " c" + ci : ""}">${escapeHtml(it.course)}</span>${escapeHtml(it.name)}
-      <div class="sub">${it.allday ? "Due end of day" : "Due " + escapeHtml(time)}</div></a>${st}</div>`;
+  if (!up || !up.items) {
+    $("upcoming").innerHTML = '<div class="sub">Tap "Refresh due dates" to load your courses.</div>';
+    return;
   }
-  $("upcoming").innerHTML = html || '<div class="sub">Nothing due in the next 3 weeks.</div>';
+  const archive = state.previous_week_due || {};
+  const currentMonday = weekKey();
+  const lastMonday = previousMonday(currentMonday);
+  const statuses = (state.upcoming_status && state.upcoming_status.items) || {};
+  const archivedStatuses = archive.statuses || {};
+  const courses = [...new Set([...(up.items || []), ...(archive.items || [])].map(i => i.course))].sort();
+  const checkedAt = state.upcoming_status && state.upcoming_status.checked;
+  const checkedMillis = checkedAt ? new Date(checkedAt).getTime() : NaN;
+  const stale = !Number.isFinite(checkedMillis) ||
+    Date.now() - checkedMillis > 12 * 60 * 60 * 1000;
+
+  function findStatus(it) {
+    const itemWeek = weekKey(new Date(it.due));
+    const last = itemWeek === lastMonday;
+    const historical = last && archive.week_start === lastMonday;
+    const recorded = historical
+      ? archivedStatuses[String(it.id)] || statuses[String(it.id)]
+      : statuses[String(it.id)];
+    const verifiedHistory = historical
+      ? archive.discussion_history
+      : state.discussion_history;
+    const discussion = verifiedHistory && verifiedHistory.week_start === itemWeek
+      ? discussionDueStatus(
+          historical ? {...state, discussion_history: verifiedHistory} : state,
+          it, itemWeek, Number(config && config.default_discussion_replies) || 2)
+      : null;
+
+    if (discussion) return {
+      text: discussion.text, tone: discussion.tone,
+      completed: discussion.completed
+    };
+    // Canvas often counts an initial discussion post as "submitted" even
+    // when peer replies are still required. Never hide such an assignment
+    // as complete without independently verified peer replies.
+    if (/\bdiscussion\b/i.test(it.name || "")) return {
+      text: "Check replies", tone: "unk", completed: false
+    };
+    if (recorded && recorded.verified === true && recorded.submitted) {
+      return {text: "Submitted ✓", tone: "good", completed: true};
+    }
+    if (recorded && recorded.verified === false) {
+      return {text: "Unable to verify", tone: "unk", completed: false};
+    }
+    if (!historical && stale) return {
+      text: "Check status", tone: "unk", completed: false
+    };
+    if (recorded && recorded.verified === true && recorded.missing) {
+      return {text: "Missing", tone: "bad", completed: false};
+    }
+    if (recorded && recorded.verified === true) return {
+      text: "Not submitted", tone: "unk", completed: false
+    };
+    return {text: "Check status", tone: "unk", completed: false};
+  }
+
+  const historyItems = archive.week_start === lastMonday ? archive.items || [] : [];
+  const grouped = groupDueDates(up.items, historyItems, currentMonday, weekKey,
+    (item) => findStatus(item).completed);
+  const prevOpen = Boolean(document.getElementById("dueLastWeek")?.open);
+  const currentSubmittedOpen = Boolean(document.getElementById("dueCurrentSubmitted")?.open);
+
+  function displayItems(items) {
+    let html = "", lastDay = "";
+    for (const it of items) {
+      const due = new Date(it.due);
+      const day = due.toLocaleDateString("en-US", {timeZone:"America/New_York",
+        weekday:"long", month:"short", day:"numeric"});
+      if (lastDay !== day) {
+        html += `<div class="day">${escapeHtml(day)}</div>`;
+        lastDay = day;
+      }
+      const status = findStatus(it);
+      const ci = courses.indexOf(it.course) % 3;
+      const time = due.toLocaleTimeString("en-US", {timeZone:"America/New_York",
+        hour:"numeric", minute:"2-digit"});
+      html += `<div class="item"><a href="${escapeHtml(it.url)}" target="_blank" rel="noopener">
+        <span class="course${ci ? " c" + ci : ""}">${escapeHtml(it.course)}</span>${escapeHtml(it.name)}
+        <div class="sub">${it.allday ? "Due end of day" : "Due " + escapeHtml(time)}</div></a>
+        <span class="st ${status.tone}">${escapeHtml(status.text)}</span></div>`;
+    }
+    return html;
+  }
+
+  let html = '<h3 class="due-section-heading">This week · ' +
+    escapeHtml(weekLabel(currentMonday)) + '</h3>';
+  html += grouped.current.length ? displayItems(grouped.current) :
+    '<p class="sub">No outstanding assignments for this week based on the latest available Canvas checks.</p>';
+  if (grouped.overdue.length) {
+    html += '<h3 class="due-section-heading">Still unfinished from last week</h3>' +
+      displayItems(grouped.overdue);
+  }
+  if (grouped.future.length) {
+    html += '<h3 class="due-section-heading">Coming up</h3>' +
+      displayItems(grouped.future);
+  }
+  if (grouped.currentSubmitted.length) {
+    html += `<details class="due-history" id="dueCurrentSubmitted" ${currentSubmittedOpen ? "open" : ""}>
+      <summary>Submitted this week (${grouped.currentSubmitted.length})</summary>
+      ${displayItems(grouped.currentSubmitted)}</details>`;
+  }
+  if (grouped.lastSubmitted.length || historyItems.length) {
+    html += `<details class="due-history" id="dueLastWeek" ${prevOpen ? "open" : ""}>
+      <summary>Last week · ${escapeHtml(weekLabel(lastMonday))}
+        (${grouped.lastSubmitted.length} submitted)</summary>
+      ${grouped.lastSubmitted.length ? displayItems(grouped.lastSubmitted) :
+         '<p class="sub">No Canvas-verified submitted assignments found for last week.</p>'}
+      </details>`;
+  }
+  $("upcoming").innerHTML = html;
   const chk = state.upcoming_status && state.upcoming_status.checked;
   $("upcomingNote").textContent = `Due dates updated ${fmt(up.updated)}.` +
     (chk ? ` Assignment submission statuses checked ${fmt(chk)}.` :
