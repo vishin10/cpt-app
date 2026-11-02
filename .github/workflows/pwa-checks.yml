@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'app.js'
+      - 'work-hours-policy.js'
       - 'reply-format.js'
       - 'discussion-sync.js'
       - 'due-discussion-status.js'
@@ -20,6 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Verify JavaScript syntax
-        run: node --check app.js && node --check discussion-sync.js && node --check due-discussion-status.js && node --check reply-format.js && node --check discussion-history.js && node --check live-refresh.js && node --check sw.js
+        run: node --check app.js && node --check work-hours-policy.js && node --check discussion-sync.js && node --check due-discussion-status.js && node --check reply-format.js && node --check discussion-history.js && node --check live-refresh.js && node --check sw.js
       - name: Test reply formatting
-        run: node --test tests/reply-format.test.js tests/discussion-sync.test.js tests/due-discussion-status.test.js
+        run: node --test tests/reply-format.test.js tests/discussion-sync.test.js tests/due-discussion-status.test.js tests/work-hours-policy.test.js
