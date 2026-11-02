@@ -79,6 +79,12 @@
   @media (prefers-color-scheme: dark) { .course.c1 { background: #2a2540; color: #c7bcf2; } .course.c2 { background: #3a2619; color: #f2c09d; } }
   .day { font-size: 13px; font-weight: 650; color: var(--muted); margin: 12px 0 2px; }
   .day:first-child { margin-top: 0; }
+  .due-section-heading { font-size: 14px; font-weight: 700; color: var(--muted);
+    margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .due-section-heading:first-child { margin-top: 6px; }
+  .due-history { border-top: 1px solid var(--line); margin: 16px 0 0; padding: 12px 0 0; }
+  .due-history summary { color: var(--accent); font-size: 15px; }
+  .due-history[open] summary { margin-bottom: 12px; }
   .item { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
   .item a { color: var(--ink); text-decoration: none; }
   .item .st { font-size: 13px; white-space: nowrap; text-align: right; }
@@ -172,7 +178,7 @@
     </section>
 
     <section class="card" id="upcomingCard" data-page="due">
-      <h2>Upcoming – all courses</h2>
+      <h2>Due dates · unfinished work</h2>
       <div id="upcoming"><div class="sub">—</div></div>
       <div class="note" id="upcomingNote"></div>
       <button class="btn ghost" id="upcomingBtn">Refresh due dates (calendar only)</button>
@@ -250,6 +256,7 @@
 <script src="reply-format.js"></script>
 <script src="discussion-sync.js"></script>
 <script src="due-discussion-status.js"></script>
+<script src="due-week-view.js"></script>
 <script src="work-hours-policy.js"></script>
 <script src="app.js"></script>
 <script src="discussion-history.js"></script>
